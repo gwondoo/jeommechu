@@ -28,6 +28,12 @@ docker compose logs -f
 코드를 수정한 뒤 다시 배포:
 
 ```bash
+docker compose restart
+```
+
+`bot.py`, `kakao.py`, `storage.py`는 호스트 파일을 컨테이너에 직접 연결합니다. 따라서 위 명령어만으로 코드 변경이 반영됩니다. `requirements.txt` 또는 `Dockerfile`을 변경했을 때만 이미지를 다시 빌드하세요.
+
+```bash
 docker compose up -d --build
 ```
 
