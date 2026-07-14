@@ -99,6 +99,10 @@ class LunchBot(discord.Client):
         if self.dev_guild:
             self.tree.copy_global_to(guild=self.dev_guild)
             await self.tree.sync(guild=self.dev_guild)
+            # Development guild commands appear immediately. Remove the previous
+            # global registration so Discord does not show every command twice.
+            self.tree.clear_commands(guild=None)
+            await self.tree.sync()
             LOGGER.info("Slash commands synced to development guild %s", self.dev_guild.id)
         else:
             await self.tree.sync()
