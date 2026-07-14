@@ -7,6 +7,7 @@ services:
     env_file:
       - .env
     volumes:
-      # 식권대장과 회사 설정은 컨테이너 재생성 뒤에도 호스트에 남습니다.
+      - ./bot.py:/app/bot.py:ro
+      - ./kakao.py:/app/kakao.py:ro
+      - ./storage.py:/app/storage.py:ro
       - ./data:/app/data
-
