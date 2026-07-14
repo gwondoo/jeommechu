@@ -1,0 +1,6 @@
+.env
+data/state.json
+!data/.gitkeep
+__pycache__/
+.pytest_cache/
+*.py[cod]

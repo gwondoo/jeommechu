@@ -1,0 +1,12 @@
+services:
+  jeommechu:
+    build:
+      context: .
+    container_name: jeommechu-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      # 식권대장과 회사 설정은 컨테이너 재생성 뒤에도 호스트에 남습니다.
+      - ./data:/app/data
+
