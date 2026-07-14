@@ -140,7 +140,7 @@ async def lunch_recommend(interaction: discord.Interaction, kind: app_commands.C
         message = "식권대장에 등록된 식당이 없습니다. `/식권대장 추가`로 먼저 등록해주세요."
         if kind:
             message = f"식권대장에 ‘{kind.value}’ 조건에 맞는 식당이 없습니다."
-        await interaction.response.send_message(message, ephemeral=True)
+        await interaction.response.send_message(message)
         return
     place = random.choice(places)
     await interaction.response.send_message(
@@ -163,7 +163,7 @@ async def nearby_recommend(
     guild = await store.get_guild(guild_id)
     company = guild.get("company")
     if not company:
-        await interaction.response.send_message("먼저 `/회사주소설정`으로 회사 주소를 설정해주세요.", ephemeral=True)
+        await interaction.response.send_message("먼저 `/회사주소설정`으로 회사 주소를 설정해주세요.")
         return
     radius = int(distance or company.get("default_radius", 700))
     await interaction.response.defer(thinking=True)
@@ -171,10 +171,10 @@ async def nearby_recommend(
         places = await bot.kakao.nearby_restaurants(company["longitude"], company["latitude"], radius, kind.value if kind else None)
     except KakaoError:
         LOGGER.exception("Kakao nearby search failed")
-        await interaction.followup.send("주변 음식점 정보를 가져오지 못했습니다. 잠시 후 다시 시도해주세요.", ephemeral=True)
+        await interaction.followup.send("주변 음식점 정보를 가져오지 못했습니다. 잠시 후 다시 시도해주세요.")
         return
     if not places:
-        await interaction.followup.send("조건에 맞는 주변 음식점을 찾지 못했습니다. 거리나 종류를 바꿔보세요.", ephemeral=True)
+        await interaction.followup.send("조건에 맞는 주변 음식점을 찾지 못했습니다. 거리나 종류를 바꿔보세요.")
         return
     await store.set_nearby_cache(guild_id, radius, places)
     place = random.choice(places)
@@ -202,7 +202,7 @@ async def ticket_list(interaction: discord.Interaction, kind: app_commands.Choic
         return
     places = filter_places(await store.restaurants(guild_id), kind.value if kind else None)
     if not places:
-        await interaction.response.send_message("등록된 식권대장 식당이 없습니다.", ephemeral=True)
+        await interaction.response.send_message("등록된 식권대장 식당이 없습니다.")
         return
     lines = []
     for index, place in enumerate(places[:20], start=1):
@@ -240,7 +240,7 @@ async def ticket_add(
     try:
         added = await store.add_restaurant(guild_id, place)
     except ValueError as exc:
-        await interaction.response.send_message(str(exc), ephemeral=True)
+        await interaction.response.send_message(str(exc))
         return
     await interaction.response.send_message(embed=recommendation_embed(added, "식권대장에 추가됨", 1))
 
@@ -262,12 +262,12 @@ async def ticket_update(
         return
     changes = {"name": name, "category": kind.value if kind else None, "address": address, "phone": phone, "memo": memo}
     if all(value is None for value in changes.values()):
-        await interaction.response.send_message("바꿀 항목을 하나 이상 입력해주세요.", ephemeral=True)
+        await interaction.response.send_message("바꿀 항목을 하나 이상 입력해주세요.")
         return
     try:
         updated = await store.update_restaurant(guild_id, restaurant, changes)
     except KeyError:
-        await interaction.response.send_message(f"‘{restaurant}’을 식권대장에서 찾지 못했습니다.", ephemeral=True)
+        await interaction.response.send_message(f"‘{restaurant}’을 식권대장에서 찾지 못했습니다.")
         return
     await interaction.response.send_message(embed=recommendation_embed(updated, "식권대장 수정 완료", 1))
 
@@ -280,12 +280,11 @@ async def ticket_delete(interaction: discord.Interaction, restaurant: str) -> No
         return
     places = await store.restaurants(guild_id)
     if not any(place["name"].casefold() == restaurant.casefold() for place in places):
-        await interaction.response.send_message(f"‘{restaurant}’을 식권대장에서 찾지 못했습니다.", ephemeral=True)
+        await interaction.response.send_message(f"‘{restaurant}’을 식권대장에서 찾지 못했습니다.")
         return
     await interaction.response.send_message(
         f"⚠️ ‘{restaurant}’을 식권대장 목록에서 삭제할까요?",
         view=DeleteConfirmView(store, guild_id, restaurant, interaction.user.id),
-        ephemeral=True,
     )
 
 
@@ -295,19 +294,19 @@ async def set_company_address(interaction: discord.Interaction, address: str, ra
     guild_id = await require_guild(interaction)
     if guild_id is None:
         return
-    await interaction.response.defer(thinking=True, ephemeral=True)
+    await interaction.response.defer(thinking=True)
     try:
         coordinate = await bot.kakao.address_to_coordinate(address)
     except KakaoError:
         LOGGER.exception("Kakao geocoding failed")
-        await interaction.followup.send("주소를 확인하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.", ephemeral=True)
+        await interaction.followup.send("주소를 확인하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
         return
     if not coordinate:
-        await interaction.followup.send("입력한 주소를 찾지 못했습니다. 도로명 주소를 포함해 다시 입력해주세요.", ephemeral=True)
+        await interaction.followup.send("입력한 주소를 찾지 못했습니다. 도로명 주소를 포함해 다시 입력해주세요.")
         return
     company = {**coordinate, "default_radius": int(radius), "updated_at": now_iso()}
     await store.set_company(guild_id, company)
-    await interaction.followup.send(f"✅ 회사 주소를 설정했습니다.\n\n📍 {company['address']}\n🔎 기본 검색 반경: {radius:,}m", ephemeral=True)
+    await interaction.followup.send(f"✅ 회사 주소를 설정했습니다.\n\n📍 {company['address']}\n🔎 기본 검색 반경: {radius:,}m")
 
 
 @bot.tree.command(name="회사주소조회", description="현재 설정된 회사 주소를 확인합니다.")
@@ -318,11 +317,10 @@ async def get_company_address(interaction: discord.Interaction) -> None:
     guild = await store.get_guild(guild_id)
     company = guild.get("company")
     if not company:
-        await interaction.response.send_message("아직 회사 주소가 설정되지 않았습니다. `/회사주소설정`을 사용해주세요.", ephemeral=True)
+        await interaction.response.send_message("아직 회사 주소가 설정되지 않았습니다. `/회사주소설정`을 사용해주세요.")
         return
     await interaction.response.send_message(
         f"🏢 현재 회사 주소\n\n📍 {company['address']}\n🔎 기본 검색 반경: {company['default_radius']:,}m\n🎫 식권대장 등록 식당: {len(guild['meal_ticket_restaurants'])}곳",
-        ephemeral=True,
     )
 
 
@@ -333,7 +331,7 @@ async def help_command(interaction: discord.Interaction) -> None:
     embed.add_field(name="식권대장", value="`/식권대장 목록`\n`/식권대장 추가`\n`/식권대장 수정`\n`/식권대장 삭제`", inline=False)
     embed.add_field(name="회사 주소", value="`/회사주소설정 주소 [반경]`\n`/회사주소조회`", inline=False)
     embed.set_footer(text="종류와 거리 같은 옵션은 Discord 입력창에서 선택할 수 있어요.")
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+    await interaction.response.send_message(embed=embed)
 
 
 @bot.event
