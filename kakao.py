@@ -21,7 +21,8 @@ class KakaoLocalClient:
         async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.get(f"{self.BASE_URL}{path}", headers=headers, params=params) as response:
                 if response.status != 200:
-                    raise KakaoError(f"카카오 API 요청 실패 ({response.status})")
+                    detail = (await response.text()).strip()
+                    raise KakaoError(f"카카오 API 요청 실패 ({response.status}): {detail[:500]}")
                 return await response.json()
 
     async def address_to_coordinate(self, address: str) -> dict[str, Any] | None:
@@ -69,4 +70,3 @@ class KakaoLocalClient:
         )
         documents = result.get("documents", [])
         return self.normalize_place(documents[0]) if documents else None
-
