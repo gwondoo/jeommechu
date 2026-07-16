@@ -17,6 +17,7 @@ LOGGER = logging.getLogger("jeommechu")
 
 KIND_CHOICES = [app_commands.Choice(name=name, value=name) for name in ("한식", "중식", "일식", "양식", "아시아음식", "분식", "치킨", "피자", "카페")]
 DEFAULT_RADIUS = 700
+SEARCH_CACHE_VERSION = "v5_fd6_groups"
 
 
 def guild_id_of(interaction: discord.Interaction) -> int | None:
@@ -169,21 +170,39 @@ async def nearby_recommend(
     radius = int(distance or company.get("default_radius", DEFAULT_RADIUS))
     await interaction.response.defer(thinking=True)
     kind_value = kind.value if kind else None
-    places = await store.get_nearby_cache(guild_id, radius, kind_value)
-    fetched = False
-    if not places:
-        try:
-            places = await bot.kakao.nearby_restaurants(company["longitude"], company["latitude"], radius, kind_value)
-            fetched = True
-        except KakaoError:
-            LOGGER.exception("Kakao nearby search failed")
-            await interaction.followup.send("주변 음식점 정보를 가져오지 못했습니다. 잠시 후 다시 시도해주세요.")
-            return
+    if kind_value:
+        places = await store.get_nearby_cache(guild_id, radius, kind_value)
+        if not places:
+            try:
+                places = await bot.kakao.nearby_restaurants(company["longitude"], company["latitude"], radius, kind_value)
+            except KakaoError:
+                LOGGER.exception("Kakao nearby search failed")
+                await interaction.followup.send("주변 음식점 정보를 가져오지 못했습니다. 잠시 후 다시 시도해주세요.")
+                return
+            if places:
+                await store.set_nearby_cache(guild_id, radius, places, kind_value)
+    else:
+        group_names = (*bot.kakao.DEFAULT_SEARCH_KINDS, bot.kakao.GENERAL_SEARCH_GROUP)
+        groups: dict[str, list[dict]] = {}
+        for group_name in group_names:
+            cache_key = f"{SEARCH_CACHE_VERSION}:{group_name}"
+            cached = await store.get_nearby_cache(guild_id, radius, cache_key)
+            if cached:
+                groups[group_name] = cached
+        if len(groups) != len(group_names):
+            try:
+                groups = await bot.kakao.nearby_restaurant_groups(company["longitude"], company["latitude"], radius)
+            except KakaoError:
+                LOGGER.exception("Kakao grouped nearby search failed")
+                await interaction.followup.send("주변 음식점 정보를 가져오지 못했습니다. 잠시 후 다시 시도해주세요.")
+                return
+            for group_name, group_places in groups.items():
+                cache_key = f"{SEARCH_CACHE_VERSION}:{group_name}"
+                await store.set_nearby_cache(guild_id, radius, group_places, cache_key)
+        places = bot.kakao.merge_restaurant_groups(groups)
     if not places:
         await interaction.followup.send("조건에 맞는 주변 음식점을 찾지 못했습니다. 거리나 종류를 바꿔보세요.")
         return
-    if fetched:
-        await store.set_nearby_cache(guild_id, radius, places, kind_value)
     recent = await store.recent_recommendations(guild_id, "nearby")
     candidates = [candidate for candidate in places if place_key(candidate) not in recent] or places
     place = random.choice(candidates)
