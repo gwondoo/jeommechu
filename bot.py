@@ -16,6 +16,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 LOGGER = logging.getLogger("jeommechu")
 
 KIND_CHOICES = [app_commands.Choice(name=name, value=name) for name in ("한식", "중식", "일식", "양식", "아시아음식", "분식", "치킨", "피자", "카페")]
+DEFAULT_RADIUS = 1000
 
 
 def guild_id_of(interaction: discord.Interaction) -> int | None:
@@ -165,7 +166,7 @@ async def nearby_recommend(
     if not company:
         await interaction.response.send_message("먼저 `/회사주소설정`으로 회사 주소를 설정해주세요.")
         return
-    radius = int(distance or company.get("default_radius", 700))
+    radius = int(distance or company.get("default_radius", DEFAULT_RADIUS))
     await interaction.response.defer(thinking=True)
     try:
         places = await bot.kakao.nearby_restaurants(company["longitude"], company["latitude"], radius, kind.value if kind else None)
@@ -232,7 +233,7 @@ async def ticket_add(
     place: dict = {"name": name, "category": kind.value if kind else "종류 미정", "address": address or "", "phone": phone or "", "latitude": None, "longitude": None, "distance_meters": None, "kakao_place_id": None, "kakao_place_url": None, "memo": memo or ""}
     if company:
         try:
-            found = await bot.kakao.find_place(name, company["longitude"], company["latitude"], company.get("default_radius", 700))
+            found = await bot.kakao.find_place(name, company["longitude"], company["latitude"], company.get("default_radius", DEFAULT_RADIUS))
             if found:
                 place = {**found, **{key: value for key, value in place.items() if value not in (None, "", "종류 미정")}}
         except KakaoError:
@@ -290,7 +291,7 @@ async def ticket_delete(interaction: discord.Interaction, restaurant: str) -> No
 
 @bot.tree.command(name="회사주소설정", description="회사 주소와 주변 검색 반경을 설정합니다.")
 @app_commands.describe(address="회사 도로명 또는 지번 주소", radius="기본 검색 반경(미터)")
-async def set_company_address(interaction: discord.Interaction, address: str, radius: app_commands.Range[int, 100, 20000] = 700) -> None:
+async def set_company_address(interaction: discord.Interaction, address: str, radius: app_commands.Range[int, 100, 20000] = DEFAULT_RADIUS) -> None:
     guild_id = await require_guild(interaction)
     if guild_id is None:
         return

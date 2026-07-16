@@ -57,11 +57,25 @@ class KakaoLocalClient:
         params: dict[str, Any] = {"x": longitude, "y": latitude, "radius": radius, "sort": "distance", "size": 15}
         if kind:
             params["query"] = f"{kind} 음식점"
-            result = await self._get("/search/keyword.json", params)
+            path = "/search/keyword.json"
         else:
             params["category_group_code"] = "FD6"
-            result = await self._get("/search/category.json", params)
-        return [self.normalize_place(document) for document in result.get("documents", [])]
+            path = "/search/category.json"
+
+        places: list[dict[str, Any]] = []
+        seen_ids: set[str] = set()
+        for page in range(1, 4):
+            result = await self._get(path, {**params, "page": page})
+            for document in result.get("documents", []):
+                place_id = str(document.get("id", ""))
+                if place_id and place_id in seen_ids:
+                    continue
+                if place_id:
+                    seen_ids.add(place_id)
+                places.append(self.normalize_place(document))
+            if result.get("meta", {}).get("is_end", True):
+                break
+        return places
 
     async def find_place(self, name: str, longitude: float, latitude: float, radius: int) -> dict[str, Any] | None:
         result = await self._get(
