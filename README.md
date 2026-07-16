@@ -56,8 +56,13 @@ pip install -r requirements.txt
 python bot.py
 ```
 
-개발 중에는 `.env`의 `DISCORD_GUILD_ID`를 설정하세요. 해당 서버에만 명령어가 즉시 동기화됩니다.
-비워두면 전역 명령어로 동기화되며 Discord에 반영되기까지 시간이 걸릴 수 있습니다.
+`.env`의 `DISCORD_GUILD_IDS`에 명령어 사용을 허용할 Discord 서버 ID를 쉼표로 구분해 입력하세요. 명령어는 이 목록의 서버에만 등록되며 전역으로 공개되지 않습니다. 기존 `DISCORD_GUILD_ID` 하나만 설정한 구성도 계속 지원합니다.
+
+```env
+DISCORD_GUILD_IDS=123456789012345678,987654321098765432
+```
+
+서버 ID는 Discord에서 **사용자 설정 → 고급 → 개발자 모드**를 켠 뒤, 왼쪽 서버 아이콘을 우클릭하고 **서버 ID 복사**를 선택해 확인할 수 있습니다.
 
 ## 명령어
 

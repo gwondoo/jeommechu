@@ -88,39 +88,41 @@ class DeleteConfirmView(discord.ui.View):
 
 
 class LunchBot(discord.Client):
-    def __init__(self, store: SqliteStore, kakao: KakaoLocalClient, dev_guild_id: int | None) -> None:
+    def __init__(self, store: SqliteStore, kakao: KakaoLocalClient, guild_ids: list[int]) -> None:
         intents = discord.Intents.default()
         super().__init__(intents=intents)
         self.tree = app_commands.CommandTree(self)
         self.store = store
         self.kakao = kakao
-        self.dev_guild = discord.Object(id=dev_guild_id) if dev_guild_id else None
+        self.allowed_guilds = [discord.Object(id=guild_id) for guild_id in guild_ids]
 
     async def setup_hook(self) -> None:
         await self.store.load()
-        if self.dev_guild:
-            self.tree.copy_global_to(guild=self.dev_guild)
-            await self.tree.sync(guild=self.dev_guild)
-            # Development guild commands appear immediately. Remove the previous
-            # global registration so Discord does not show every command twice.
-            self.tree.clear_commands(guild=None)
-            await self.tree.sync()
-            LOGGER.info("Slash commands synced to development guild %s", self.dev_guild.id)
-        else:
-            await self.tree.sync()
-            LOGGER.info("Global slash commands synced")
+        for guild in self.allowed_guilds:
+            self.tree.copy_global_to(guild=guild)
+            await self.tree.sync(guild=guild)
+            LOGGER.info("Slash commands synced to allowed guild %s", guild.id)
+        # Keep the bot private: remove global commands so unlisted servers do
+        # not receive slash commands even if the application was installed.
+        self.tree.clear_commands(guild=None)
+        await self.tree.sync()
+        LOGGER.info("Global slash commands cleared")
 
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 KAKAO_KEY = os.getenv("KAKAO_REST_API_KEY")
-DEV_GUILD = int(os.environ["DISCORD_GUILD_ID"]) if os.getenv("DISCORD_GUILD_ID") else None
+guild_ids_value = os.getenv("DISCORD_GUILD_IDS") or os.getenv("DISCORD_GUILD_ID", "")
+try:
+    ALLOWED_GUILD_IDS = [int(value.strip()) for value in guild_ids_value.split(",") if value.strip()]
+except ValueError as exc:
+    raise RuntimeError("DISCORD_GUILD_IDS에는 숫자 서버 ID를 쉼표로 구분해 입력해주세요.") from exc
 
-if not TOKEN or not KAKAO_KEY:
-    raise RuntimeError(".env에 DISCORD_BOT_TOKEN과 KAKAO_REST_API_KEY를 설정해주세요.")
+if not TOKEN or not KAKAO_KEY or not ALLOWED_GUILD_IDS:
+    raise RuntimeError(".env에 DISCORD_BOT_TOKEN, KAKAO_REST_API_KEY, DISCORD_GUILD_IDS를 설정해주세요.")
 
 store = SqliteStore()
-bot = LunchBot(store, KakaoLocalClient(KAKAO_KEY), DEV_GUILD)
+bot = LunchBot(store, KakaoLocalClient(KAKAO_KEY), ALLOWED_GUILD_IDS)
 
 
 async def require_guild(interaction: discord.Interaction) -> int | None:
