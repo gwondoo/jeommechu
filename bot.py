@@ -130,16 +130,16 @@ async def require_guild(interaction: discord.Interaction) -> int | None:
     return guild_id
 
 
-@bot.tree.command(name="점메추", description="식권대장 식당 중에서 점심을 추천합니다.")
+@bot.tree.command(name="식권대장", description="식권대장에 등록한 식당 중에서 점심을 추천합니다.")
 @app_commands.describe(kind="원하는 음식 종류")
 @app_commands.choices(kind=KIND_CHOICES)
-async def lunch_recommend(interaction: discord.Interaction, kind: app_commands.Choice[str] | None = None) -> None:
+async def ticket_recommend(interaction: discord.Interaction, kind: app_commands.Choice[str] | None = None) -> None:
     guild_id = await require_guild(interaction)
     if guild_id is None:
         return
     places = filter_places(await store.restaurants(guild_id), kind.value if kind else None)
     if not places:
-        message = "식권대장에 등록된 식당이 없습니다. `/식권대장 추가`로 먼저 등록해주세요."
+        message = "식권대장에 등록된 식당이 없습니다. `/식권관리 추가`로 먼저 등록해주세요."
         if kind:
             message = f"식권대장에 ‘{kind.value}’ 조건에 맞는 식당이 없습니다."
         await interaction.response.send_message(message)
@@ -151,10 +151,10 @@ async def lunch_recommend(interaction: discord.Interaction, kind: app_commands.C
     )
 
 
-@bot.tree.command(name="식권대장싫어", description="회사 주변 모든 식당 중에서 점심을 추천합니다.")
+@bot.tree.command(name="점메추", description="회사 주변 전체 식당 중에서 점심을 추천합니다.")
 @app_commands.describe(kind="원하는 음식 종류", distance="검색 반경(미터). 기본값은 회사 설정값입니다.")
 @app_commands.choices(kind=KIND_CHOICES)
-async def nearby_recommend(
+async def lunch_recommend(
     interaction: discord.Interaction,
     kind: app_commands.Choice[str] | None = None,
     distance: app_commands.Range[int, 100, 20000] | None = None,
@@ -218,7 +218,7 @@ async def nearby_recommend(
     await interaction.followup.send(embed=embed, view=kakao_map_view(place))
 
 
-ticket_group = app_commands.Group(name="식권대장", description="식권대장 식당을 관리합니다.")
+ticket_group = app_commands.Group(name="식권관리", description="식권대장 식당을 관리합니다.")
 bot.tree.add_command(ticket_group)
 
 
@@ -357,8 +357,8 @@ async def get_company_address(interaction: discord.Interaction) -> None:
 @bot.tree.command(name="도움말", description="점메추 봇 명령어를 안내합니다.")
 async def help_command(interaction: discord.Interaction) -> None:
     embed = discord.Embed(title="🍽️ 점메추 봇 도움말", color=0xF9A825)
-    embed.add_field(name="점심 추천", value="`/점메추 [종류]` — 식권대장 식당에서 추천\n`/식권대장싫어 [종류] [거리]` — 회사 주변 전체 식당에서 추천", inline=False)
-    embed.add_field(name="식권대장", value="`/식권대장 목록`\n`/식권대장 추가`\n`/식권대장 수정`\n`/식권대장 삭제`", inline=False)
+    embed.add_field(name="점심 추천", value="`/점메추 [종류] [거리]` — 회사 주변 전체 식당에서 추천\n`/식권대장 [종류]` — 등록한 식권대장 식당에서 추천", inline=False)
+    embed.add_field(name="식권대장 관리", value="`/식권관리 목록`\n`/식권관리 추가`\n`/식권관리 수정`\n`/식권관리 삭제`", inline=False)
     embed.add_field(name="회사 주소", value="`/회사주소설정 주소 [반경]`\n`/회사주소조회`", inline=False)
     embed.set_footer(text="종류와 거리 같은 옵션은 Discord 입력창에서 선택할 수 있어요.")
     await interaction.response.send_message(embed=embed)
