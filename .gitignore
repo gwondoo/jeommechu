@@ -1,5 +1,8 @@
 .env
 data/state.json
+data/*.db
+data/*.db-shm
+data/*.db-wal
 !data/.gitkeep
 __pycache__/
 .pytest_cache/

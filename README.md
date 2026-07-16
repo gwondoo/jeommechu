@@ -43,7 +43,9 @@ docker compose up -d --build
 docker compose down
 ```
 
-`data/`는 호스트 볼륨으로 연결됩니다. 따라서 `docker compose down` 또는 이미지 재빌드 뒤에도 `data/state.json`의 회사 설정과 식권대장 목록은 유지됩니다.
+`data/`는 호스트 볼륨으로 연결됩니다. SQLite 파일 `data/jeommechu.db`는 컨테이너 밖에 있으므로 `docker compose down`, 재시작, 이미지 재빌드 뒤에도 회사 설정, 식권대장, 주변 검색 결과와 추천 이력이 유지됩니다. `docker compose down -v`를 실행하거나 호스트의 `data/`를 직접 삭제하지 않는 한 데이터는 사라지지 않습니다.
+
+처음 SQLite 버전으로 실행할 때 기존 `data/state.json`이 있으면 자동으로 데이터를 이전합니다. 이전 파일은 안전을 위해 삭제하지 않습니다.
 
 Docker 없이 실행하려면 다음을 사용합니다.
 
@@ -66,4 +68,4 @@ python bot.py
 - `/회사주소조회`: 회사 위치 조회
 - `/도움말`: 명령어 안내
 
-식권대장 데이터는 `data/state.json`에 저장됩니다. 이 파일에는 API 키를 넣지 마세요.
+데이터는 `data/jeommechu.db`에 저장됩니다. 회사 주소나 기본 반경이 변경되면 해당 Discord 서버의 주변 검색 결과와 주변 추천 이력만 초기화되며, 직접 등록한 식권대장 데이터는 유지됩니다.

@@ -9,14 +9,14 @@ from discord import app_commands
 from dotenv import load_dotenv
 
 from kakao import KakaoError, KakaoLocalClient
-from storage import JsonStore, now_iso
+from storage import SqliteStore, now_iso, place_key
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 LOGGER = logging.getLogger("jeommechu")
 
 KIND_CHOICES = [app_commands.Choice(name=name, value=name) for name in ("한식", "중식", "일식", "양식", "아시아음식", "분식", "치킨", "피자", "카페")]
-DEFAULT_RADIUS = 1000
+DEFAULT_RADIUS = 700
 
 
 def guild_id_of(interaction: discord.Interaction) -> int | None:
@@ -59,7 +59,7 @@ def recommendation_embed(place: dict, source: str, candidate_count: int) -> disc
 
 
 class DeleteConfirmView(discord.ui.View):
-    def __init__(self, store: JsonStore, guild_id: int, restaurant_name: str, requester_id: int) -> None:
+    def __init__(self, store: SqliteStore, guild_id: int, restaurant_name: str, requester_id: int) -> None:
         super().__init__(timeout=60)
         self.store = store
         self.guild_id = guild_id
@@ -87,7 +87,7 @@ class DeleteConfirmView(discord.ui.View):
 
 
 class LunchBot(discord.Client):
-    def __init__(self, store: JsonStore, kakao: KakaoLocalClient, dev_guild_id: int | None) -> None:
+    def __init__(self, store: SqliteStore, kakao: KakaoLocalClient, dev_guild_id: int | None) -> None:
         intents = discord.Intents.default()
         super().__init__(intents=intents)
         self.tree = app_commands.CommandTree(self)
@@ -118,7 +118,7 @@ DEV_GUILD = int(os.environ["DISCORD_GUILD_ID"]) if os.getenv("DISCORD_GUILD_ID")
 if not TOKEN or not KAKAO_KEY:
     raise RuntimeError(".env에 DISCORD_BOT_TOKEN과 KAKAO_REST_API_KEY를 설정해주세요.")
 
-store = JsonStore()
+store = SqliteStore()
 bot = LunchBot(store, KakaoLocalClient(KAKAO_KEY), DEV_GUILD)
 
 
@@ -168,17 +168,26 @@ async def nearby_recommend(
         return
     radius = int(distance or company.get("default_radius", DEFAULT_RADIUS))
     await interaction.response.defer(thinking=True)
-    try:
-        places = await bot.kakao.nearby_restaurants(company["longitude"], company["latitude"], radius, kind.value if kind else None)
-    except KakaoError:
-        LOGGER.exception("Kakao nearby search failed")
-        await interaction.followup.send("주변 음식점 정보를 가져오지 못했습니다. 잠시 후 다시 시도해주세요.")
-        return
+    kind_value = kind.value if kind else None
+    places = await store.get_nearby_cache(guild_id, radius, kind_value)
+    fetched = False
+    if not places:
+        try:
+            places = await bot.kakao.nearby_restaurants(company["longitude"], company["latitude"], radius, kind_value)
+            fetched = True
+        except KakaoError:
+            LOGGER.exception("Kakao nearby search failed")
+            await interaction.followup.send("주변 음식점 정보를 가져오지 못했습니다. 잠시 후 다시 시도해주세요.")
+            return
     if not places:
         await interaction.followup.send("조건에 맞는 주변 음식점을 찾지 못했습니다. 거리나 종류를 바꿔보세요.")
         return
-    await store.set_nearby_cache(guild_id, radius, places)
-    place = random.choice(places)
+    if fetched:
+        await store.set_nearby_cache(guild_id, radius, places, kind_value)
+    recent = await store.recent_recommendations(guild_id, "nearby")
+    candidates = [candidate for candidate in places if place_key(candidate) not in recent] or places
+    place = random.choice(candidates)
+    await store.record_recommendation(guild_id, "nearby", place)
     registered = any(
         (r.get("kakao_place_id") and r.get("kakao_place_id") == place.get("kakao_place_id"))
         or (r["name"].casefold() == place["name"].casefold() and r.get("address") == place.get("address"))
@@ -306,8 +315,9 @@ async def set_company_address(interaction: discord.Interaction, address: str, ra
         await interaction.followup.send("입력한 주소를 찾지 못했습니다. 도로명 주소를 포함해 다시 입력해주세요.")
         return
     company = {**coordinate, "default_radius": int(radius), "updated_at": now_iso()}
-    await store.set_company(guild_id, company)
-    await interaction.followup.send(f"✅ 회사 주소를 설정했습니다.\n\n📍 {company['address']}\n🔎 기본 검색 반경: {radius:,}m")
+    location_changed = await store.set_company(guild_id, company)
+    reset_message = "\n♻️ 기존 주변 식당과 추천 이력을 초기화했습니다." if location_changed else ""
+    await interaction.followup.send(f"✅ 회사 주소를 설정했습니다.\n\n📍 {company['address']}\n🔎 기본 검색 반경: {radius:,}m{reset_message}")
 
 
 @bot.tree.command(name="회사주소조회", description="현재 설정된 회사 주소를 확인합니다.")
