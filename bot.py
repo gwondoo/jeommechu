@@ -17,7 +17,7 @@ LOGGER = logging.getLogger("jeommechu")
 
 KIND_CHOICES = [app_commands.Choice(name=name, value=name) for name in ("한식", "중식", "일식", "양식", "아시아음식", "분식", "치킨", "피자", "카페")]
 DEFAULT_RADIUS = 700
-SEARCH_CACHE_VERSION = "v5_fd6_groups"
+SEARCH_CACHE_VERSION = "v6_lunch_only"
 
 
 def guild_id_of(interaction: discord.Interaction) -> int | None:
@@ -171,7 +171,8 @@ async def lunch_recommend(
     await interaction.response.defer(thinking=True)
     kind_value = kind.value if kind else None
     if kind_value:
-        places = await store.get_nearby_cache(guild_id, radius, kind_value)
+        cache_key = f"{SEARCH_CACHE_VERSION}:single:{kind_value}"
+        places = await store.get_nearby_cache(guild_id, radius, cache_key)
         if not places:
             try:
                 places = await bot.kakao.nearby_restaurants(company["longitude"], company["latitude"], radius, kind_value)
@@ -180,7 +181,7 @@ async def lunch_recommend(
                 await interaction.followup.send("주변 음식점 정보를 가져오지 못했습니다. 잠시 후 다시 시도해주세요.")
                 return
             if places:
-                await store.set_nearby_cache(guild_id, radius, places, kind_value)
+                await store.set_nearby_cache(guild_id, radius, places, cache_key)
     else:
         group_names = (*bot.kakao.DEFAULT_SEARCH_KINDS, bot.kakao.GENERAL_SEARCH_GROUP)
         groups: dict[str, list[dict]] = {}

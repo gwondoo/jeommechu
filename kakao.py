@@ -14,6 +14,18 @@ class KakaoLocalClient:
     BASE_URL = "https://dapi.kakao.com/v2/local"
     DEFAULT_SEARCH_KINDS = ("한식", "중식", "일식", "양식", "아시아음식", "분식", "치킨", "피자")
     GENERAL_SEARCH_GROUP = "기타"
+    EXCLUDED_LUNCH_CATEGORY_TOKENS = (
+        "술집",
+        "칵테일바",
+        "호프",
+        "요리주점",
+        "이자카야",
+        "와인바",
+        "감성주점",
+        "단란주점",
+        "유흥주점",
+        "포장마차",
+    )
 
     def __init__(self, api_key: str) -> None:
         self.api_key = api_key
@@ -58,6 +70,13 @@ class KakaoLocalClient:
             "memo": "",
         }
 
+    @classmethod
+    def is_lunch_place(cls, document: dict[str, Any]) -> bool:
+        category = document.get("category_name", "").casefold()
+        return document.get("category_group_code") == "FD6" and not any(
+            token.casefold() in category for token in cls.EXCLUDED_LUNCH_CATEGORY_TOKENS
+        )
+
     async def _search_restaurant_pages(
         self,
         longitude: float,
@@ -84,7 +103,7 @@ class KakaoLocalClient:
         for page in range(1, 4):
             result = await self._get(path, {**params, "page": page})
             for document in result.get("documents", []):
-                if document.get("category_group_code") != "FD6":
+                if not self.is_lunch_place(document):
                     continue
                 place_id = str(document.get("id", ""))
                 if place_id and place_id in seen_ids:
