@@ -202,18 +202,41 @@ class SqliteStore:
                 self._db().execute("DELETE FROM meal_ticket_restaurants WHERE id = ?", (row["id"],))
             return json.loads(row["data_json"])
 
-    async def get_nearby_cache(self, guild_id: int, radius: int, kind: str | None = None, max_age_hours: int = 6) -> list[dict[str, Any]]:
+    async def get_nearby_cache(
+        self,
+        guild_id: int,
+        radius: int,
+        kind: str | None = None,
+        max_age_hours: int = 6,
+        company: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return this guild's cache or a fresh cache from the same company location."""
         async with self._lock:
-            row = self._db().execute(
-                "SELECT id, fetched_at FROM nearby_searches WHERE guild_id = ? AND radius = ? AND kind = ?",
-                (guild_id, radius, kind or ""),
-            ).fetchone()
-            if row is None or datetime.fromisoformat(row["fetched_at"]) < datetime.now(timezone.utc).astimezone() - timedelta(hours=max_age_hours):
-                return []
+            cutoff = datetime.now(timezone.utc).astimezone() - timedelta(hours=max_age_hours)
             rows = self._db().execute(
-                "SELECT data_json FROM nearby_places WHERE search_id = ? ORDER BY position", (row["id"],)
+                """
+                SELECT searches.id, searches.guild_id, searches.fetched_at, companies.data_json AS company_json
+                FROM nearby_searches AS searches
+                LEFT JOIN companies ON companies.guild_id = searches.guild_id
+                WHERE searches.radius = ? AND searches.kind = ?
+                ORDER BY CASE WHEN searches.guild_id = ? THEN 0 ELSE 1 END, searches.fetched_at DESC
+                """,
+                (radius, kind or "", guild_id),
             ).fetchall()
-            return [json.loads(item["data_json"]) for item in rows]
+            for row in rows:
+                if datetime.fromisoformat(row["fetched_at"]) < cutoff:
+                    continue
+                if row["guild_id"] != guild_id:
+                    if company is None or row["company_json"] is None:
+                        continue
+                    cached_company = json.loads(row["company_json"])
+                    if _distance_meters(company, cached_company) >= 20:
+                        continue
+                place_rows = self._db().execute(
+                    "SELECT data_json FROM nearby_places WHERE search_id = ? ORDER BY position", (row["id"],)
+                ).fetchall()
+                return [json.loads(item["data_json"]) for item in place_rows]
+            return []
 
     def _replace_nearby_cache(self, guild_id: int, radius: int, kind: str, places: list[dict[str, Any]], fetched_at: str | None = None) -> None:
         self._db().execute("DELETE FROM nearby_searches WHERE guild_id = ? AND radius = ? AND kind = ?", (guild_id, radius, kind))

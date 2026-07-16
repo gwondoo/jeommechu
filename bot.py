@@ -174,7 +174,7 @@ async def lunch_recommend(
     kind_value = kind.value if kind else None
     if kind_value:
         cache_key = f"{SEARCH_CACHE_VERSION}:single:{kind_value}"
-        places = await store.get_nearby_cache(guild_id, radius, cache_key)
+        places = await store.get_nearby_cache(guild_id, radius, cache_key, company=company)
         if not places:
             try:
                 places = await bot.kakao.nearby_restaurants(company["longitude"], company["latitude"], radius, kind_value)
@@ -189,7 +189,7 @@ async def lunch_recommend(
         groups: dict[str, list[dict]] = {}
         for group_name in group_names:
             cache_key = f"{SEARCH_CACHE_VERSION}:{group_name}"
-            cached = await store.get_nearby_cache(guild_id, radius, cache_key)
+            cached = await store.get_nearby_cache(guild_id, radius, cache_key, company=company)
             if cached:
                 groups[group_name] = cached
         if len(groups) != len(group_names):
